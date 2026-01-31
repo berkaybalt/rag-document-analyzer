@@ -1,0 +1,14 @@
+# Virtual environment
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.so
+.env
+.venv/
+
+# ChromaDB (if you add persistent store later)
+chroma_data/
