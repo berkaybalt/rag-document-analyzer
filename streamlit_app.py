@@ -45,6 +45,20 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("Documents")
+    
+    # Reset button
+    if st.button("Delete All Documents)", use_container_width=True, type="secondary"):
+        try:
+            resp = requests.post(f"{API_BASE}/reset", timeout=60)
+            data = resp.json()
+            if data.get("status") == "Success!":
+                st.success("Vector store cleared!")
+                st.rerun()
+            else:
+                st.error(f"Reset failed: {data.get('message')}")
+        except Exception as e:
+            st.error(f"Reset error: {e}")
+    
     try:
         resp = requests.get(f"{API_BASE}/documents", timeout=60)
         data = resp.json()
@@ -64,6 +78,7 @@ with st.sidebar:
                             d_data = d_resp.json()
                             if d_data.get("status") == "Success!":
                                 st.success(f"Deleted {doc}")
+                                st.rerun()
                             else:
                                 st.error(f"Delete failed: {d_data.get('message')}")
                         except Exception as e:
@@ -84,9 +99,11 @@ if "messages" not in st.session_state:
 for msg in st.session_state["messages"]:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
-        for src in msg.get("sources", []):
+        for i, src in enumerate(msg.get("sources", []), start=1):
             source_file = (src.get("metadata") or {}).get("source", "?")
-            st.markdown(f"*Source: **{source_file}***")
+            page_num = (src.get("metadata") or {}).get("page", 0)
+            content_preview = src.get("content", "")[:100]
+            st.markdown(f"**Source {i}:** [{source_file} (page {page_num + 1})](http://localhost:8000/pdf/{source_file}#page={page_num}) | *{content_preview}...*")
 
 # Chat input
 if prompt := st.chat_input("Ask a question about the ingested protocol"):
@@ -108,11 +125,28 @@ if prompt := st.chat_input("Ask a question about the ingested protocol"):
                     answer = data.get("answer", "")
                     sources = data.get("sources") or []
                     st.markdown(answer)
-                    for i, src in enumerate(sources, start=1):
-                        source_file = (src.get("metadata") or {}).get("source", "?")
-                        st.markdown(f"*Source {i}: **{source_file}***")
+                    
+                    # Display sources with links and page info
+                    with st.expander("Sources", expanded=True):
+                        for i, src in enumerate(sources, start=1):
+                            source_file = (src.get("metadata") or {}).get("source", "?")
+                            page_num = (src.get("metadata") or {}).get("page", 0)
+                            content_preview = src.get("content", "")[:150]
+                            distance = src.get("distance", 0)
+                            
+                            # Calculate similarity score (1 - normalized distance)
+                            similarity = max(0, 1 - distance)
+                            
+                            pdf_url = f"http://localhost:8000/pdf/{source_file}#page={page_num+1}"
+                            
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.markdown(f"**Source {i}:** [{source_file}]({pdf_url}) — Page {page_num + 1}")
+                            with col2:
+                                st.metric("Score", f"{similarity:.3f}", delta=None)
+                            
+                            st.code(content_preview + "...", language="text")
 
-                    # Save assistant message with sources
                     st.session_state["messages"].append(
                         {
                             "role": "assistant",

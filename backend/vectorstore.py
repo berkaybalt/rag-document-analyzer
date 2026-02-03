@@ -1,10 +1,5 @@
-"""
-ChromaDB vector store for protocol chunks.
-Uses sentence-transformers/all-MiniLM-L6-v2 for embeddings.
-"""
 import uuid
 from pathlib import Path
-
 import chromadb
 from chromadb.utils import embedding_functions
 
@@ -27,23 +22,23 @@ def add_documents(texts: list[str], metadatas: list[dict] | None = None) -> None
     if metadatas is None:
         metadatas = [{"i": i} for i in range(len(texts))]
     else:
-        # ChromaDB requires non-empty metadata; add index if empty
         metadatas = [m if m else {"i": i} for i, m in enumerate(metadatas)]
     _collection.add(documents=texts, metadatas=metadatas, ids=ids)
 
 
 def search(query: str, k: int = 4) -> list[dict]:
-    """Semantic search; returns list of {content, metadata}."""
+    """Semantic search; returns list of {content, metadata, distance}."""
     result = _collection.query(
         query_texts=[query],
         n_results=k,
-        include=["documents", "metadatas"],
+        include=["documents", "metadatas", "distances"],
     )
     documents = result["documents"][0]
     metadatas = result["metadatas"][0]
+    distances = result["distances"][0]
     return [
-        {"content": doc, "metadata": meta or {}}
-        for doc, meta in zip(documents, metadatas)
+        {"content": doc, "metadata": meta or {}, "distance": dist}
+        for doc, meta, dist in zip(documents, metadatas, distances)
     ]
 
 
@@ -78,3 +73,14 @@ def list_documents() -> list[str]:
 def delete_document(source: str) -> None:
     """Delete all chunks belonging to a given source filename."""
     _collection.delete(where={"source": source})
+
+
+def clear_all() -> None:
+    """Clear all documents from the vector store."""
+    import chromadb
+    _client.delete_collection(name=_COLLECTION_NAME)
+    global _collection
+    _collection = _client.get_or_create_collection(
+        name=_COLLECTION_NAME,
+        embedding_function=_ef,
+    )

@@ -18,19 +18,20 @@ Answer:"""
 
 
 def query(question: str, k: int = 4) -> dict:
-    """Retrieve relevant chunks, ask LLM, return answer and sources."""
+    """Retrieve relevant chunks, ask LLM, return answer and sources with scores."""
     sources = search(question, k=k)
     context = "\n\n---\n\n".join(h["content"] for h in sources)
     prompt = _PROMPT.format(context=context, question=question)
     response = llm.invoke(prompt)
     return {
         "answer": response.content,
-        "sources": [{"content": h["content"][:300], "metadata": h["metadata"]} for h in sources],
+        "sources": [
+            {
+                "content": h["content"][:300], 
+                "metadata": h["metadata"],
+                "distance": h["distance"]
+            } 
+            for h in sources
+        ],
     }
 
-
-out = query('Which LLM is used in this project?')
-print(out['answer'])
-print('--- sources ---')
-for s in out['sources']:
-    print(s['metadata'].get('source'), s['content'][:80])
