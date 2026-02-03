@@ -12,29 +12,36 @@ st.caption("Upload clinical protocols and ask questions locally with RAG.")
 
 with st.sidebar:
     st.header("Ingest PDF")
-    uploaded_file = st.file_uploader("Choose a PDF file", type=["pdf"])
+    uploaded_files = st.file_uploader("Choose PDF files", type=["pdf"], accept_multiple_files=True)
 
-    if st.button("Ingest PDF", use_container_width=True) and uploaded_file:
-        try:
-            files = {
-                "file": (
-                    uploaded_file.name,
-                    uploaded_file.getvalue(),
-                    "application/pdf",
-                )
-            }
-            resp = requests.post(f"{API_BASE}/ingest", files=files, timeout=300)
-            data = resp.json()
-            if data.get("status") == "Success!":
-                st.success(
-                    f"Ingested {data.get('filename')} with {data.get('chunks')} chunks."
-                )
-            else:
-                st.error(f"Ingestion failed: {data.get('message')}")
-                if detail := data.get("detail"):
-                    st.caption(detail)
-        except Exception as e:
-            st.error(f"Request error: {e}")
+    if st.button("Ingest PDFs", use_container_width=True) and uploaded_files:
+        total_chunks = 0
+        ingested_files = []
+        for uploaded_file in uploaded_files:
+            try:
+                files = {
+                    "file": (
+                        uploaded_file.name,
+                        uploaded_file.getvalue(),
+                        "application/pdf",
+                    )
+                }
+                resp = requests.post(f"{API_BASE}/ingest", files=files, timeout=300)
+                data = resp.json()
+                if data.get("status") == "Success!":
+                    filename = data.get('filename')
+                    chunks = data.get('chunks')
+                    total_chunks += chunks
+                    ingested_files.append(f"{filename} ({chunks} chunks)")
+                else:
+                    st.error(f"Ingestion failed for {uploaded_file.name}: {data.get('message')}")
+                    if detail := data.get("detail"):
+                        st.caption(detail)
+            except Exception as e:
+                st.error(f"Request error for {uploaded_file.name}: {e}")
+        
+        if ingested_files:
+            st.success(f"Successfully ingested {len(ingested_files)} file(s) with {total_chunks} total chunks:\n" + "\n".join(ingested_files))
 
     st.markdown("---")
     st.header("Documents")
